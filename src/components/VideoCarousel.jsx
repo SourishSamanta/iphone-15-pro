@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { hightlightsSlides } from '../constants'
 import gsap from 'gsap';
 import { pauseImg, playImg, replayImg } from '../utils';
+import { useGSAP } from '@gsap/react';
 
 const VideoCarousel = () => {
 
@@ -22,6 +23,34 @@ const VideoCarousel = () => {
 
     const { isEnd, startPlay, videoId, isLastVideo, isPlaying } = video;  //destructured....to avoid (video.isEnd , ...)
 
+    const handleLoadMetaData = (i,e) => {
+        setLoadedData((pre) => [...pre, e]);
+    }
+
+    useGSAP(() => {
+
+        gsap.to('#slider',{
+            transform: `translateX(${-100 * videoId}%)`,
+            duration: 2,
+            ease: 'power2.inOut',
+        })
+
+
+        gsap.to("#video", {
+            scrollTrigger: {
+                trigger: "#video",
+                toggleActions: "restart none none none",
+            },
+            onComplete: () => {
+                setVideo((pre) => ({
+                    ...pre,
+                    startPlay: true,
+                    isPlaying: true,
+                }))
+            },
+        })
+    }, [isEnd, videoId])
+
     useEffect(() => {
         if (loadedData.length > 3) {
             if (!isPlaying) {
@@ -35,19 +64,60 @@ const VideoCarousel = () => {
 
     useEffect(() => {
 
-        const currentProgress = 0;
+        let currentProgress = 0;
         let span = videoSpanRef.current;
 
         if (span[videoId]) {
             let anim = gsap.to(span[videoId], {
                 onUpdate: () => {
+                    const progress = Math.ceil(anim.progress() * 100);
+
+                    if(progress !=  currentProgress){
+                        currentProgress = progress;
+
+                        gsap.to(videoDivRef.current[videoId],{
+                            width: window.innerHeight < 760 ? '10vw' : window.innerHeight < 1200 ? '10vw' : '4vw'
+                        })
+
+                        gsap.to(span[videoId],{
+                            width: `${currentProgress}%`,
+                            background: "white"
+                        })
+                    }
 
                 },
 
                 onComplete: () => {
-
+                    if(isPlaying){
+                        gsap.to(videoDivRef.current[videoId],{
+                            width: '12px',
+                        }),
+                        gsap.to(videoDivRef.current[videoId],{
+                            background: '#afafaf'
+                        })
+                    }
+                    if(videoId == 0){
+                    
+                    }
                 }
+
+                
             })
+
+            if(videoId === 0){
+                anim.restart();
+            }
+
+            const animUpdate = () => {
+                anim.progress(videoRef.current[videoId].currentTime / 
+                hightlightsSlides[videoId].videoDuration)
+            }
+
+            if(isPlaying){
+                gsap.ticker.add(animUpdate)
+            } else{
+                gsap.ticker.remove(animUpdate)
+            }
         }
 
 
@@ -64,20 +134,33 @@ const VideoCarousel = () => {
 
             case 'video-last':
                 setVideo((pre) => ({
-                    ...pre, isEnd: true,
-                    videoId: i + 1
+                    ...pre, isLastVideo: true,
+                    
                 }))
                 break;
 
-            case 'video-end':
+            case 'video-reset':
                 setVideo((pre) => ({
-                    ...pre, isEnd: true,
-                    videoId: i + 1
+                    ...pre, isLastVideo: false,
+                    videoId: 0
+                }))
+                break;
+            case 'play':
+                setVideo((pre) => ({
+                    ...pre, isPlaying: !pre.isPlaying,
+                    
+                }))
+                break;
+            case 'pause':
+                setVideo((pre) => ({
+                    ...pre, isPlaying: !pre.isPlaying,
+                    
                 }))
                 break;
 
             default:
-                break;
+                return video;
+                
         }
     }
 
@@ -93,6 +176,8 @@ const VideoCarousel = () => {
                             bg-black overflow-hidden rounded-3xl'>
                                     <video id='video' muted playsInline={true} preload='auto'
                                         ref={(el) => (videoRef.current[i] = el)}
+                                        className={`${list.id === 2 && 'translate-x-44'} pointer-events-none`}
+                                        onEnded={() => i !== 3? handleProcess('video-end',i) : handleProcess('video-last')}
                                         onPlay={() => {
                                             setVideo((prevVideo) => ({
 
@@ -101,6 +186,7 @@ const VideoCarousel = () => {
                                             }))
                                             
                                         }}
+                                        onLoadedData={(e) => {handleLoadMetaData(i,e)}}
                                     >
                                         <source src={list.video} />
                                     </video>
